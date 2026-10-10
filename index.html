@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Positive Coaching Classes - Online Test</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+<style>
+:root{--bg:#f3f6fb;--card:#fff;--ink:#182230;--muted:#667085;--brand:#2547d0;--brand2:#172f9e;--line:#e4e8f0;--good:#147d48;--bad:#c43232}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:linear-gradient(120deg,#172f9e,#4267f5);color:white;padding:24px 16px}
+.wrap{max-width:1050px;margin:auto}header h1{margin:0;font-size:clamp(24px,4vw,34px)}header p{margin:7px 0 0;opacity:.9}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}button,.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer;background:var(--brand);color:white}button:hover,.btn:hover{background:var(--brand2)}button.secondary{background:#e8edff;color:#233ea8}button.danger{background:#b42318}button:disabled{opacity:.5;cursor:not-allowed}
+main{max-width:1050px;margin:20px auto;padding:0 14px 36px}.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 5px 18px #192b4a0a}
+h2{font-size:21px;margin:0 0 14px}h3{margin:0 0 10px;font-size:17px}.muted{color:var(--muted);font-size:14px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}.field label{font-weight:650;font-size:14px}input,select,textarea{width:100%;border:1px solid #cfd6e3;border-radius:9px;padding:11px 12px;font:inherit;background:white;color:var(--ink)}textarea{min-height:82px;resize:vertical}.options{display:grid;grid-template-columns:1fr 1fr;gap:10px}.question-card{border:1px solid var(--line);border-radius:12px;padding:14px;margin:10px 0}.pill{display:inline-block;background:#edf1ff;color:#263ea4;border-radius:30px;padding:4px 9px;font-size:12px;font-weight:700}.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.hide{display:none!important}.choice{display:flex;gap:9px;align-items:flex-start;border:1px solid var(--line);padding:12px;border-radius:10px;margin:8px 0;cursor:pointer}.choice input{width:auto;margin-top:4px}.choice:has(input:checked){border-color:var(--brand);background:#f0f3ff}.timer{font-size:20px;font-weight:800;color:#b42318}.result-score{font-size:38px;font-weight:850;color:var(--brand)}.notice{background:#fff8e6;border:1px solid #f4d58b;padding:12px;border-radius:10px;color:#704d00}.success{color:var(--good);font-weight:700}.error{color:var(--bad);font-weight:700}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;min-width:520px}th,td{text-align:left;border-bottom:1px solid var(--line);padding:10px}th{background:#f7f8fc}.empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed #cfd6e3;border-radius:12px}
+footer{text-align:center;color:var(--muted);padding:15px;font-size:12px}
+@media(max-width:650px){.grid,.options{grid-template-columns:1fr}.panel{padding:15px}header{padding:20px 14px}}
+.crop-modal{position:fixed;inset:0;background:#101828cc;z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px}
+.crop-box{background:#fff;border-radius:16px;padding:16px;width:min(900px,100%);max-height:94vh;overflow:auto}
+.crop-image-wrap{max-height:62vh;margin:12px 0;overflow:hidden;text-align:center;background:#f3f6fb}
+#cropSourceImage{display:block;max-width:100%;max-height:60vh;margin:auto}
+.crop-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ocr-status{margin-top:8px;font-size:14px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header><div class="wrap"><h1>Positive Coaching Classes</h1><p>SSC Online Test Portal • Practice tests • Timed exams • Instant results</p></div></header>
+<main>
+  <div class="notice"><b>Demo version:</b> This file saves tests and results only in this browser/device. To let students take tests from their own phones and to secure admin login, it must be connected to an online database and hosted.</div>
+  <nav>
+    <button onclick="showTab('student')">Student Test</button>
+    <button class="secondary" onclick="showTab('admin')">Admin Panel</button>
+    <button class="secondary" onclick="showTab('results')">Results / Marksheet</button>
+  </nav>
+
+  <section id="studentTab" class="panel">
+    <h2>Student Test</h2>
+    <div id="studentSetup">
+      <div class="grid">
+        <div class="field"><label for="studentName">Student name</label><input id="studentName" placeholder="Enter full name"></div>
+        <div class="field"><label for="studentRoll">Roll number (optional)</label><input id="studentRoll" placeholder="Enter roll number"></div>
+      </div>
+      <div class="field"><label for="testSelect">Choose test</label><select id="testSelect"></select></div>
+      <p id="testInfo" class="muted"></p>
+      <button onclick="startTest()">Start Test</button>
+      <div id="noTests" class="empty hide">No test is available yet. Admin can create a test from the Admin Panel.</div>
+    </div>
+    <div id="testArea" class="hide">
+      <div class="row"><div><span class="pill" id="activeTestName"></span><p class="muted" id="progressText"></p></div><div class="timer" id="timer">00:00</div></div>
+      <form id="testForm"></form>
+      <button onclick="submitTest(false)" id="submitTestBtn">Submit Test</button>
+    </div>
+    <div id="studentResult" class="hide"></div>
+  </section>
+
+  <section id="adminTab" class="panel hide">
+    <h2>Admin Panel</h2>
+    <div id="adminLogin">
+      <p class="muted">Demo admin PIN: <b>1234</b>. This PIN is only a demo gate and is not secure for a public website.</p>
+      <div class="grid"><div class="field"><label for="adminPin">Admin PIN</label><input id="adminPin" type="password" placeholder="Enter admin PIN"></div><div class="field" style="justify-content:end"><button onclick="loginAdmin()">Login</button></div></div>
+      <p id="loginError" class="error"></p>
+    </div>
+    <div id="adminContent" class="hide">
+      <div class="field"><label for="testTitle">Test title</label><input id="testTitle" placeholder="e.g. SSC English - Comparative Degree"></div>
+      <div class="grid">
+        <div class="field"><label for="testSubject">Subject / topic</label><input id="testSubject" placeholder="e.g. English Grammar"></div>
+        <div class="field"><label for="testMinutes">Time limit (minutes)</label><input id="testMinutes" type="number" min="1" max="180" value="20"></div>
+      </div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
+      <h3>Add a question</h3>
+      <div class="field"><label for="questionText">Question (optional if using a photo)</label><textarea id="questionText" placeholder="Type your question here, or attach a photo below"></textarea></div>
+      <div class="field"><label>Question photo</label><div class="row"><button type="button" onclick="document.getElementById('questionCamera').click()">📷 Take Photo / Open Camera</button><button type="button" class="secondary" onclick="document.getElementById('questionPhotoFile').click()">Choose Photo</button><button type="button" class="danger" onclick="clearQuestionPhoto()">Remove Photo</button></div><input id="questionCamera" type="file" accept="image/*" capture="environment" class="hide"><input id="questionPhotoFile" type="file" accept="image/*" class="hide"><div id="questionPhotoPreview" class="muted">No photo selected. On a phone, tap “Take Photo” to open the camera.</div></div>
+      <div class="options">
+        <div class="field"><label for="opt0">Option A</label><input id="opt0" placeholder="Option A"></div>
+        <div class="field"><label for="opt1">Option B</label><input id="opt1" placeholder="Option B"></div>
+        <div class="field"><label for="opt2">Option C</label><input id="opt2" placeholder="Option C"></div>
+        <div class="field"><label for="opt3">Option D</label><input id="opt3" placeholder="Option D"></div>
+      </div>
+      <div class="grid">
+        <div class="field"><label for="correctOption">Correct answer</label><select id="correctOption"><option value="0">A</option><option value="1">B</option><option value="2">C</option><option value="3">D</option></select></div>
+        <div class="field"><label for="questionMarks">Marks</label><input id="questionMarks" type="number" min="1" max="20" value="1"></div>
+      </div>
+      <div class="row"><button onclick="addQuestion()">Add Question</button><span class="muted" id="draftCount">0 questions added</span></div>
+      <div id="draftQuestions"></div>
+      <div class="row" style="margin-top:16px"><button onclick="saveTest()">Save / Publish Test</button><button class="secondary" onclick="clearDraft()">Clear Draft</button></div>
+      <p id="adminMessage" class="success"></p>
+      <hr style="border:0;border-top:1px solid var(--line);margin:20px 0">
+      <h3>Existing tests</h3><div id="existingTests"></div>
+      <button class="secondary" onclick="logoutAdmin()">Logout</button>
+    </div>
+  </section>
+
+  <section id="resultsTab" class="panel hide">
+    <div class="row"><h2>Results / Marksheet</h2><button class="secondary" onclick="exportResults()">Export CSV</button></div>
+    <p class="muted">Results saved in this browser are listed below.</p>
+    <div id="resultsTable"></div>
+    <button class="danger" onclick="clearResults()">Clear All Results</button>
+  </section>
+</main>
+<div id="cropModal" class="crop-modal hide" role="dialog" aria-modal="true" aria-labelledby="cropHeading">
+  <div class="crop-box">
+    <h2 id="cropHeading">Crop Question Photo</h2>
+    <p class="muted">Photo mein question aur A/B/C/D options ko select karein. “Crop & Read Question + Options” dabane par photo ka printed text Question aur Options boxes mein likhne ki koshish hogi.</p>
+    <div class="crop-image-wrap"><img id="cropSourceImage" alt="Photo to crop"></div>
+    <div id="ocrStatus" class="ocr-status">Photo load ho rahi hai...</div>
+    <div class="crop-actions">
+      <button type="button" class="secondary" onclick="cancelPhotoCrop()">Cancel</button>
+      <button type="button" class="secondary" onclick="usePhotoWithoutOCR()">Use Photo Only</button>
+      <button type="button" id="cropReadButton" onclick="cropAndReadPhoto()">Crop & Read Question + Options</button>
+    </div>
+  </div>
+</div>
+<footer>Positive Coaching Classes • Online Test Portal Demo</footer>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const KEY_TESTS='ssc_demo_tests_v1', KEY_RESULTS='ssc_demo_results_v1';
+let draft=[], active=null, timerId=null, secondsLeft=0, startTime=null, currentQuestionPhoto='';
+function getTests(){try{return JSON.parse(localStorage.getItem(KEY_TESTS)||'[]')}catch(e){return []}}
+function putTests(x){localStorage.setItem(KEY_TESTS,JSON.stringify(x))}
+function getResults(){try{return JSON.parse(localStorage.getItem(KEY_RESULTS)||'[]')}catch(e){return []}}
+function putResults(x){localStorage.setItem(KEY_RESULTS,JSON.stringify(x))}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function showTab(which){['student','admin','results'].forEach(t=>document.getElementById(t+'Tab').classList.toggle('hide',t!==which));if(which==='student')renderTestChoices();if(which==='results')renderResults();if(which==='admin')renderExistingTests()}
+function renderTestChoices(){const tests=getTests(),sel=document.getElementById('testSelect');sel.innerHTML='';tests.forEach((t,i)=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.title;sel.appendChild(o)});document.getElementById('noTests').classList.toggle('hide',tests.length>0);document.getElementById('testSelect').classList.toggle('hide',tests.length===0);document.getElementById('studentSetup').querySelector('button').disabled=tests.length===0;updateTestInfo()}
+function updateTestInfo(){const t=getTests().find(x=>x.id===document.getElementById('testSelect').value);document.getElementById('testInfo').textContent=t?`${t.subject||'General'} • ${t.questions.length} questions • ${t.minutes} minutes • ${t.questions.reduce((a,q)=>a+Number(q.marks),0)} total marks`:''}
+document.getElementById('testSelect').addEventListener('change',updateTestInfo);
+function loginAdmin(){if(document.getElementById('adminPin').value==='1234'){document.getElementById('adminLogin').classList.add('hide');document.getElementById('adminContent').classList.remove('hide');document.getElementById('loginError').textContent='';renderDraft();renderExistingTests()}else document.getElementById('loginError').textContent='Incorrect PIN. Demo PIN is 1234.'}
+function logoutAdmin(){document.getElementById('adminContent').classList.add('hide');document.getElementById('adminLogin').classList.remove('hide');document.getElementById('adminPin').value=''}
+let cropperInstance=null, pendingPhotoData='';
+function handleQuestionPhoto(file){
+  if(!file)return;
+  if(!file.type.startsWith('image/')){alert('Please choose an image file.');return}
+  const reader=new FileReader();
+  reader.onload=()=>{
+    pendingPhotoData=reader.result;
+    const source=document.getElementById('cropSourceImage');
+    source.onload=()=>{
+      document.getElementById('cropModal').classList.remove('hide');
+      document.getElementById('ocrStatus').textContent='Photo ready. Crop the question and options area.';
+      if(cropperInstance){cropperInstance.destroy();cropperInstance=null;}
+      if(typeof Cropper!=='undefined'){
+        cropperInstance=new Cropper(source,{viewMode:1,autoCropArea:0.9, responsive:true, background:false, movable:true, zoomable:true, rotatable:true});
+      } else {
+        document.getElementById('ocrStatus').textContent='Crop tool load nahi hua. Internet check karein; aap “Use Photo Only” bhi kar sakte hain.';
+      }
+    };
+    source.onerror=()=>alert('Photo could not be opened. Please try another image.');
+    source.src=pendingPhotoData;
+  };
+  reader.readAsDataURL(file);
+}
+document.getElementById('questionCamera').addEventListener('change',e=>{handleQuestionPhoto(e.target.files[0]);e.target.value=''});
+document.getElementById('questionPhotoFile').addEventListener('change',e=>{handleQuestionPhoto(e.target.files[0]);e.target.value=''});
+function closeCropModal(){document.getElementById('cropModal').classList.add('hide');if(cropperInstance){cropperInstance.destroy();cropperInstance=null;}}
+function savePhotoPreview(dataUrl){
+  currentQuestionPhoto=dataUrl;
+  document.getElementById('questionPhotoPreview').innerHTML='<img alt="Question photo preview" src="'+dataUrl+'" style="display:block;max-width:100%;max-height:260px;margin-top:10px;border:1px solid var(--line);border-radius:10px"><span class="muted">Cropped photo ready. Check the question/options below before adding.</span>';
+}
+function cancelPhotoCrop(){closeCropModal();pendingPhotoData='';}
+function usePhotoWithoutOCR(){
+  let data=pendingPhotoData;
+  if(cropperInstance){try{data=cropperInstance.getCroppedCanvas({maxWidth:1600,maxHeight:1600,fillColor:'#fff'}).toDataURL('image/jpeg',0.86);}catch(e){}}
+  savePhotoPreview(data);closeCropModal();pendingPhotoData='';
+}
+function parseOCRQuestion(text){
+  // Printed MCQ formats supported: A. text, (A) text, A) text, A: text, A - text.
+  const lines=(text||'').split(/\r?\n/)
+    .map(x=>x.replace(/^\s*[•●▪*-]\s*/, '').replace(/[\t ]+/g,' ').trim())
+    .filter(Boolean);
+  const optionPattern=/^\s*\(?([A-D])\)?\s*[.)、:：-]\s*(.+)$/i;
+  const found=[];let firstOption=-1;
+  lines.forEach((line,index)=>{
+    const m=line.match(optionPattern);
+    if(m){if(firstOption<0)firstOption=index;found.push({letter:m[1].toUpperCase(),text:m[2].trim()});}
+  });
+  // If OCR reads options as A text (without punctuation), allow it when at least 2 option labels appear.
+  if(found.length<2){
+    const loose=/^\s*\(?([A-D])\)?\s+(.+)$/i;
+    const looseFound=[];
+    lines.forEach((line,index)=>{const m=line.match(loose);if(m)looseFound.push({index,letter:m[1].toUpperCase(),text:m[2].trim()});});
+    if(looseFound.length>=2){
+      found.splice(0,found.length,...looseFound.map(x=>({letter:x.letter,text:x.text})));
+      firstOption=looseFound[0].index;
+    }
+  }
+  let questionLines=firstOption>=0?lines.slice(0,firstOption):lines;
+  questionLines=questionLines.map(x=>x.replace(/^\s*(?:(?:Q(?:uestion)?\s*)?\d+[.)、:-]\s*)/i,'').trim()).filter(Boolean);
+  // If question and first option were printed on one line, split before the first A-D label.
+  if(firstOption<0){
+    const joined=questionLines.join(' ');
+    const inline=joined.match(/^(.*?)(?:\s+|^)(?:\(?A\)?[.)、:：-])\s*(.+?)(?:\s+\(?B\)?[.)、:：-]\s*|$)/i);
+    if(inline && inline[1].trim()) questionLines=[inline[1].trim()];
+  }
+  return {question:questionLines.join(' '),options:found};
+}
+async function cropAndReadPhoto(){
+  const status=document.getElementById('ocrStatus'),button=document.getElementById('cropReadButton');
+  let croppedData=pendingPhotoData;
+  if(cropperInstance){try{croppedData=cropperInstance.getCroppedCanvas({maxWidth:1800,maxHeight:1800,fillColor:'#fff'}).toDataURL('image/jpeg',0.9);}catch(e){alert('Photo crop nahi ho paya. Dobara try karein.');return;}}
+  savePhotoPreview(croppedData);
+  if(typeof Tesseract==='undefined'){
+    status.textContent='Auto-read library load nahi hui. Photo save ho gayi; question aur options manually type karein.';
+    closeCropModal();pendingPhotoData='';return;
+  }
+  button.disabled=true;status.textContent='Photo se text aur options read ho rahe hain. Ismein kuch seconds lag sakte hain...';
+  try{
+    const result=await Tesseract.recognize(croppedData,'eng+hin',{logger:m=>{if(m.status==='recognizing text')status.textContent='Text read ho raha hai: '+Math.round((m.progress||0)*100)+'%';}});
+    const parsed=parseOCRQuestion(result.data.text||'');
+    const questionField=document.getElementById('questionText');
+    const optionFields=[0,1,2,3].map(i=>document.getElementById('opt'+i));
+    let questionFilled=false;
+    if(parsed.question){questionField.value=parsed.question;questionFilled=true;}
+    const ordered=['A','B','C','D'].map(letter=>parsed.options.find(o=>o.letter===letter)?.text||'');
+    let filled=0;
+    if(parsed.options.some(o=>o.letter)){
+      ordered.forEach((value,i)=>{if(value){optionFields[i].value=value;filled++;}});
+    }
+    const pieces=[];
+    if(questionFilled) pieces.push('Question text box mein likh diya gaya');
+    else pieces.push('Question text clear nahi padha gaya');
+    if(filled===4) pieces.push('4 options bhi fill ho gaye');
+    else if(filled>0) pieces.push(`${filled} option(s) fill hue`);
+    else pieces.push('options clear nahi mile');
+    status.textContent=pieces.join('; ')+'. Add Question se pehle text ko check/correct kar lein.';
+    setTimeout(()=>{closeCropModal();pendingPhotoData='';},1500);
+  }catch(err){status.textContent='Auto-read nahi ho saka. Photo save hai; options manually type karein.';setTimeout(()=>{closeCropModal();pendingPhotoData='';},1400);}
+  finally{button.disabled=false;}
+}
+function clearQuestionPhoto(){currentQuestionPhoto='';pendingPhotoData='';document.getElementById('questionPhotoPreview').textContent='No photo selected. On a phone, tap “Take Photo” to open the camera.';document.getElementById('questionCamera').value='';document.getElementById('questionPhotoFile').value='';if(!document.getElementById('cropModal').classList.contains('hide'))closeCropModal();}
+function addQuestion(){const q=document.getElementById('questionText').value.trim(),opts=[0,1,2,3].map(i=>document.getElementById('opt'+i).value.trim()),correct=Number(document.getElementById('correctOption').value),marks=Number(document.getElementById('questionMarks').value);if(!q&&!currentQuestionPhoto){alert('Question type karein ya question ki photo lein.');return}if(opts.some(x=>!x)){alert('Chaaron options bhariye.');return}if(!Number.isFinite(marks)||marks<1){alert('Marks 1 ya usse zyada rakhein.');return}draft.push({text:q,options:opts,correct,marks,image:currentQuestionPhoto});['questionText','opt0','opt1','opt2','opt3'].forEach(id=>document.getElementById(id).value='');document.getElementById('questionMarks').value=1;clearQuestionPhoto();renderDraft()}
+function renderDraft(){document.getElementById('draftCount').textContent=`${draft.length} question${draft.length===1?'':'s'} added`;document.getElementById('draftQuestions').innerHTML=draft.length?draft.map((q,i)=>`<div class="question-card"><div class="row"><b>Q${i+1}. ${esc(q.text)}</b><button class="danger" onclick="removeDraft(${i})">Remove</button></div>${q.image?`<img src="${q.image}" alt="Question photo" style="display:block;max-width:100%;max-height:220px;margin:10px 0;border-radius:8px">`:''}<div class="muted">A. ${esc(q.options[0])} · B. ${esc(q.options[1])} · C. ${esc(q.options[2])} · D. ${esc(q.options[3])}<br>Correct: ${'ABCD'[q.correct]} • ${q.marks} mark(s)</div></div>`).join(''):'<p class="muted">No questions added yet.</p>'}
+function removeDraft(i){draft.splice(i,1);renderDraft()}
+function clearDraft(){draft=[];clearQuestionPhoto();renderDraft();document.getElementById('testTitle').value='';document.getElementById('testSubject').value='';document.getElementById('adminMessage').textContent=''}
+function saveTest(){const title=document.getElementById('testTitle').value.trim(),subject=document.getElementById('testSubject').value.trim(),minutes=Number(document.getElementById('testMinutes').value);if(!title){alert('Test title likhiye.');return}if(!draft.length){alert('Kam se kam ek question add karein.');return}if(!minutes||minutes<1){alert('Valid time limit dijiye.');return}const tests=getTests();tests.push({id:Date.now().toString(),title,subject,minutes,questions:[...draft]});putTests(tests);document.getElementById('adminMessage').textContent='Test saved! Is demo mein yeh isi browser par available hai.';clearDraft();renderExistingTests();renderTestChoices()}
+function renderExistingTests(){const el=document.getElementById('existingTests'),tests=getTests();el.innerHTML=tests.length?tests.map(t=>`<div class="question-card row"><div><b>${esc(t.title)}</b><div class="muted">${esc(t.subject)} • ${t.questions.length} questions • ${t.minutes} min</div></div><button class="danger" onclick="deleteTest('${t.id}')">Delete</button></div>`).join(''):'<div class="empty">No tests created yet.</div>'}
+function deleteTest(id){if(!confirm('Delete this test?'))return;putTests(getTests().filter(t=>t.id!==id));renderExistingTests();renderTestChoices()}
+function startTest(){const name=document.getElementById('studentName').value.trim(),roll=document.getElementById('studentRoll').value.trim(),t=getTests().find(x=>x.id===document.getElementById('testSelect').value);if(!name){alert('Please enter your name.');return}if(!t){alert('Admin ne abhi test publish nahi kiya.');return}active={...t,name,roll,answers:{}};startTime=Date.now();secondsLeft=t.minutes*60;document.getElementById('studentSetup').classList.add('hide');document.getElementById('studentResult').classList.add('hide');document.getElementById('testArea').classList.remove('hide');document.getElementById('activeTestName').textContent=t.title;document.getElementById('progressText').textContent=`${t.questions.length} questions • Total ${t.questions.reduce((a,q)=>a+Number(q.marks),0)} marks`;document.getElementById('testForm').innerHTML=t.questions.map((q,i)=>`<div class="question-card"><h3>Q${i+1}. ${esc(q.text)} <span class="pill">${q.marks} mark(s)</span></h3>${q.image?`<img src="${q.image}" alt="Question ${i+1}" style="display:block;max-width:100%;max-height:420px;margin:10px 0;border-radius:8px">`:''}${q.options.map((op,j)=>`<label class="choice"><input type="radio" name="q${i}" value="${j}"><span><b>${'ABCD'[j]}.</b> ${esc(op)}</span></label>`).join('')}</div>`).join('');document.getElementById('submitTestBtn').disabled=false;updateTimer();timerId=setInterval(()=>{secondsLeft--;updateTimer();if(secondsLeft<=0)submitTest(true)},1000)}
+function updateTimer(){const m=Math.floor(Math.max(0,secondsLeft)/60),s=Math.max(0,secondsLeft)%60;document.getElementById('timer').textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
+function submitTest(auto){if(!active)return;if(!auto&&!confirm('Submit your test now?'))return;clearInterval(timerId);timerId=null;const form=document.getElementById('testForm'),answers=active.questions.map((q,i)=>{const el=form.querySelector(`input[name="q${i}"]:checked`);return el?Number(el.value):null});let score=0,total=0;active.questions.forEach((q,i)=>{total+=Number(q.marks);if(answers[i]===Number(q.correct))score+=Number(q.marks)});const result={id:Date.now().toString(),name:active.name,roll:active.roll,testTitle:active.title,subject:active.subject,date:new Date().toLocaleString(),score,total,percentage:total?Math.round(score/total*100):0,answers,questions:active.questions,autoSubmitted:auto};const results=getResults();results.unshift(result);putResults(results);document.getElementById('testArea').classList.add('hide');const out=document.getElementById('studentResult');out.classList.remove('hide');out.innerHTML=`<h2>${auto?'Time is up! Test submitted':'Test submitted successfully'}</h2><div class="result-score">${score} / ${total}</div><p>${result.percentage}% score</p><p><b>Student:</b> ${esc(active.name)} ${active.roll?' • Roll No. '+esc(active.roll):''}</p><p class="${result.percentage>=40?'success':'error'}">${result.percentage>=40?'Keep practising—good work!':'Keep practising and try again.'}</p><h3>Answer review</h3>${active.questions.map((q,i)=>`<div class="question-card"><b>Q${i+1}. ${esc(q.text)}</b><p>Your answer: ${answers[i]===null?'Not answered':('ABCD'[answers[i]]+'. '+esc(q.options[answers[i]]))}</p><p>Correct answer: <span class="success">${'ABCD'[q.correct]+'. '+esc(q.options[q.correct])}</span></p></div>`).join('')}<button onclick="backToStudent()">Back to tests</button>`;active=null;renderResults()}
+function backToStudent(){document.getElementById('studentSetup').classList.remove('hide');document.getElementById('studentResult').classList.add('hide');renderTestChoices()}
+function renderResults(){const el=document.getElementById('resultsTable'),rs=getResults();if(!rs.length){el.innerHTML='<div class="empty">No results yet.</div>';return}el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Student</th><th>Roll No.</th><th>Test</th><th>Score</th><th>%</th><th>Date</th></tr></thead><tbody>${rs.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.roll||'-')}</td><td>${esc(r.testTitle)}</td><td>${r.score}/${r.total}</td><td>${r.percentage}%</td><td>${esc(r.date)}</td></tr>`).join('')}</tbody></table></div>`}
+function exportResults(){const rs=getResults();if(!rs.length){alert('No results to export.');return}const rows=[['Student','Roll No','Test','Subject','Score','Total','Percentage','Date'],...rs.map(r=>[r.name,r.roll,r.testTitle,r.subject,r.score,r.total,r.percentage+'%',r.date])];const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'}));a.download='ssc-test-results.csv';a.click();URL.revokeObjectURL(a.href)}
+function clearResults(){if(!confirm('All saved results will be deleted from this browser. Continue?'))return;putResults([]);renderResults()}
+renderTestChoices();renderResults();
+</script>
+</body></html>
