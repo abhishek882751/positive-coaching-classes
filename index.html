@@ -42,7 +42,7 @@ footer{text-align:center;color:#64748b;padding:25px}
 
 <section class="card">
 <h2>Admin Login</h2>
-<p class="muted">Admin access के लिए Firebase Authentication में बनाए गए admin email और password का उपयोग करें। इसे केवल नाम/पासवर्ड वाले client-side demo login की तरह न रखें।</p>
+<p class="muted">Admin access के लिए Firebase Authentication में बनाए गए admin email और password का उपयोग करें।</p>
 <div class="row"><div><label>Admin Email</label><input id="adminEmail" type="email" placeholder="admin@example.com"></div><div><label>Password</label><input id="adminPassword" type="password" placeholder="Password"></div></div>
 <button id="adminLoginBtn">Login as Admin</button><button id="adminLogoutBtn" class="secondary hidden">Logout</button><span id="adminStatus" class="muted"></span>
 </section>
@@ -79,11 +79,9 @@ footer{text-align:center;color:#64748b;padding:25px}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, query, where, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
-/* 1) Firebase Console > Project settings > Your apps से अपनी config यहां paste करें. */
- // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAZnXIADYewt0wsBNtKsQc93-x_peptLO8",
   authDomain: "positive-coaching-classes.firebaseapp.com",
@@ -93,157 +91,398 @@ const firebaseConfig = {
   appId: "1:663102124227:web:0c1b0c250705c724df7276",
   measurementId: "G-V1ERL7D3YJ"
 };
+
 const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app), storage = getStorage(app);
 const $ = id => document.getElementById(id);
-let currentTestId = null, currentQuestions = [], timerHandle = null, secondsLeft = 0, cropper = null, croppedBlob = null, photoBlob = null, activeStudent = null, currentTest = null, lastResults = [];
-const isConfigured = !firebaseConfig.apiKey.startsWith("PASTE_") && !firebaseConfig.projectId.startsWith("PASTE_");
-function status(id,msg){$(id).textContent=msg}
-function show(id,on=true){$(id).classList.toggle("hidden",!on)}
-function esc(s=""){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function testIdFromUrl(){return new URLSearchParams(location.search).get("test")}
-if(testIdFromUrl()) $("testId").value=testIdFromUrl();
-function requireConfig(){if(!isConfigured)throw new Error("पहले index.html में Firebase config भरें।")}
-async function ensureStudentAuth(){requireConfig();if(!auth.currentUser)await signInAnonymously(auth);return auth.currentUser}
-async function isAdmin(){return !!auth.currentUser && !auth.currentUser.isAnonymous}
-function cleanOptions(){return ["A","B","C","D"].map(k=>({key:k,text:$("opt"+k).value.trim()}))}
-function clearQuestion(){["qText","optA","optB","optC","optD"].forEach(id=>$(id).value="");$("correct").value="A";$("marks").value="1";photoBlob=null;$("photoPreview").innerHTML="";$("questionPhoto").value=""}
-function parseOCR(raw){
-  let lines=raw.split(/\n/).map(x=>x.trim()).filter(Boolean);
-  let q=[],opts={A:[],B:[],C:[],D:[]}, found=false;
-  const re=/^\s*(?:\(?([A-D])\)?[\.\):\-]|\(([A-D])\))\s*(.+)$/i;
-  for(const line of lines){const m=line.match(re);if(m){let key=(m[1]||m[2]).toUpperCase();opts[key].push(m[3].trim());found=true;}else if(!found)q.push(line);else {let key=["A","B","C","D"].find(k=>opts[k].length);if(key)opts[key][opts[key].length-1]+=" "+line;else q.push(line)}}
-  $("qText").value=q.join(" ").trim();
-  for(const k of ["A","B","C","D"])$("opt"+k).value=opts[k].join(" ").trim();
-  if(!Object.values(opts).some(v=>v.length))$("qText").value=raw.trim();
-}
-$("startBtn").onclick=async()=>{
- try{
-  const name=$("studentName").value.trim(), id=$("testId").value.trim();if(!name||!id)throw Error("अपना नाम और Test ID भरें।");
-  await ensureStudentAuth();
-  const t=await getDoc(doc(db,"tests",id));if(!t.exists()||t.data().status!=="published")throw Error("Test नहीं मिला या अभी publish नहीं हुआ।");
-  const existing=await getDoc(doc(db,"tests",id,"attempts",auth.currentUser.uid));if(existing.exists())throw Error("इस नाम/डिवाइस से इस test का attempt पहले ही दर्ज है।");
-  currentTestId=id;activeStudent=name;currentTest=t.data();
-  const qs=await getDocs(query(collection(db,"tests",id,"questions"),orderBy("order")));
-  currentQuestions=qs.docs.map(d=>({id:d.id,...d.data()}));
-  if(!currentQuestions.length)throw Error("इस test में अभी questions नहीं हैं।");
-  $("testTitle").textContent=currentTest.title;$("testMeta").textContent=(currentTest.category||"")+" • "+(currentTest.instructions||"");
-  $("questions").innerHTML=currentQuestions.map((q,i)=>`<div class="question"><b>Q${i+1}. ${esc(q.text)}</b>${q.photoURL?`<p><img src="${esc(q.photoURL)}" style="max-width:100%;max-height:220px"></p>`:""}${["A","B","C","D"].map(k=>`<label class="option"><input type="radio" name="q_${q.id}" value="${k}"><span><b>${k}.</b> ${esc(q.options?.[k]||"")}</span></label>`).join("")}</div>`).join("");
-  show("home",false);show("studentResult",false);show("testArea",true);$("submitBtn").disabled=false;
-  secondsLeft=Math.max(1,Number(currentTest.minutes||30))*60;updateTimer();clearInterval(timerHandle);timerHandle=setInterval(()=>{secondsLeft--;updateTimer();if(secondsLeft<=0){clearInterval(timerHandle);submitTest(true)}},1000);
- }catch(e){alert(e.message||e)}
-};
-function updateTimer(){$("timer").textContent="समय: "+String(Math.floor(secondsLeft/60)).padStart(2,"0")+":"+String(secondsLeft%60).padStart(2,"0")}
-async function submitTest(auto=false){
- if(!currentTestId||$("submitBtn").disabled)return;
- if(!auto&&!confirm("क्या आप test submit करना चाहते हैं? Submit के बाद दोबारा attempt नहीं होगा।"))return;
- $("submitBtn").disabled=true;clearInterval(timerHandle);
- try{
-  const answers={};currentQuestions.forEach(q=>{const el=document.querySelector(`input[name="q_${q.id}"]:checked`);answers[q.id]=el?el.value:""});
-  // Transaction prevents two submissions for the same Firebase anonymous UID.
-  const attemptRef=doc(db,"tests",currentTestId,"attempts",auth.currentUser.uid);
-  await runTransaction(db,async tx=>{
-    const old=await tx.get(attemptRef);if(old.exists())throw Error("Attempt पहले से submit हो चुका है।");
-    tx.set(attemptRef,{studentName:activeStudent,answers,submittedAt:serverTimestamp(),autoSubmitted:auto});
-  });
-  const out=await (await import("https://www.gstatic.com/firebasejs/10.12.5/firebase-functions.js")).httpsCallable;
-  // Scoring is performed here for starter use; for a high-stakes public exam, move scoring to a trusted Cloud Function.
-  let score=0,total=0,correct=0,wrong=0,unanswered=0;
-  currentQuestions.forEach(q=>{const m=Number(q.marks||1);total+=m;const a=answers[q.id];if(!a)unanswered++;else if(a===q.correct){score+=m;correct++}else wrong++});
-  await updateDoc(attemptRef,{score,total,correct,wrong,unanswered});
-  show("testArea",false);show("studentResult",true);
-  $("studentResult").innerHTML=`<h2>Test Result</h2><p>नाम: <b>${esc(activeStudent)}</b></p><h3>Score: ${score} / ${total}</h3><p>Correct: ${correct} • Wrong: ${wrong} • Unattempted: ${unanswered}</p><p>आपका result दर्ज हो गया है। इस test को दोबारा attempt नहीं कर सकते।</p>`;
- }catch(e){$("submitBtn").disabled=false;alert(e.message||e)}
-}
-$("submitBtn").onclick=()=>submitTest(false);
+let currentTestId = null, currentQuestions = [], timerHandle = null, secondsLeft = 0, cropper = null, photoBlob = null, activeStudent = null, currentTest = null, lastResults = [];
+const isConfigured = !firebaseConfig.apiKey.startsWith("PASTE_");
 
-$("adminLoginBtn").onclick=async()=>{try{requireConfig();await signInWithEmailAndPassword(auth,$("adminEmail").value.trim(),$("adminPassword").value);if(!(await isAdmin()))throw Error("Admin account से login करें।");show("adminPanel",true);show("adminLogoutBtn",true);status("adminStatus"," Login successful");await refreshTests();await refreshResults()}catch(e){status("adminStatus"," "+(e.message||e))}};
-$("adminLogoutBtn").onclick=async()=>{await signOut(auth);show("adminPanel",false);show("adminLogoutBtn",false);status("adminStatus"," Logged out")};
-onAuthStateChanged(auth,async user=>{if(user&&!user.isAnonymous){show("adminPanel",true);show("adminLogoutBtn",true);await refreshTests().catch(()=>{});await refreshResults().catch(()=>{})}});
-$("createTestBtn").onclick=async()=>{try{if(!(await isAdmin()))throw Error("पहले admin login करें।");const title=$("newTitle").value.trim();if(!title)throw Error("Test title भरें।");const d=await addDoc(collection(db,"tests"),{title,category:$("newCategory").value,minutes:Number($("newMinutes").value||30),instructions:$("newInstructions").value.trim(),status:"draft",createdAt:serverTimestamp(),createdBy:auth.currentUser.uid});currentTestId=d.id;currentQuestions=[];$("editingTestId").textContent=d.id;show("questionEditor",true);status("createdTestInfo"," Test created.");await renderQuestionList()}catch(e){alert(e.message||e)}};
-$("addQuestionBtn").onclick = async () => {
+function status(id, msg) { $(id).textContent = msg; }
+function show(id, on = true) { $(id).classList.toggle("hidden", !on); }
+function esc(s = "") { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function testIdFromUrl() { return new URLSearchParams(location.search).get("test"); }
+if (testIdFromUrl()) $("testId").value = testIdFromUrl();
+
+function requireConfig() { if (!isConfigured) throw new Error("पहले Firebase config सेट करें।"); }
+async function ensureStudentAuth() { requireConfig(); if (!auth.currentUser) await signInAnonymously(auth); return auth.currentUser; }
+async function isAdmin() { return !!auth.currentUser && !auth.currentUser.isAnonymous; }
+
+function clearQuestion() {
+  ["qText", "optA", "optB", "optC", "optD"].forEach(id => $(id).value = "");
+  $("correct").value = "A"; $("marks").value = "1";
+  photoBlob = null; $("photoPreview").innerHTML = ""; $("questionPhoto").value = "";
+}
+
+function parseOCR(raw) {
+  let lines = raw.split(/\n/).map(x => x.trim()).filter(Boolean);
+  let q = [], opts = { A: [], B: [], C: [], D: [] }, found = false;
+  const re = /^\s*(?:\(?([A-D])\)?[\.\):\-]|\(([A-D])\))\s*(.+)$/i;
+  for (const line of lines) {
+    const m = line.match(re);
+    if (m) {
+      let key = (m[1] || m[2]).toUpperCase();
+      opts[key].push(m[3].trim());
+      found = true;
+    } else if (!found) {
+      q.push(line);
+    } else {
+      let key = ["A", "B", "C", "D"].find(k => opts[k].length);
+      if (key) opts[key][opts[key].length - 1] += " " + line;
+      else q.push(line);
+    }
+  }
+  $("qText").value = q.join(" ").trim();
+  for (const k of ["A", "B", "C", "D"]) $("opt" + k).value = opts[k].join(" ").trim();
+  if (!Object.values(opts).some(v => v.length)) $("qText").value = raw.trim();
+}
+
+$("startBtn").onclick = async () => {
   try {
-    if (!(await isAdmin())) {
-      throw Error("Admin login आवश्यक है।");
-    }
+    const name = $("studentName").value.trim(), id = $("testId").value.trim();
+    if (!name || !id) throw Error("अपना नाम और Test ID भरें।");
+    await ensureStudentAuth();
+    const t = await getDoc(doc(db, "tests", id));
+    if (!t.exists() || t.data().status !== "published") throw Error("Test नहीं मिला या अभी publish नहीं हुआ।");
+    const existing = await getDoc(doc(doc(db, "tests", id), "attempts", auth.currentUser.uid));
+    if (existing.exists()) throw Error("इस डिवाइस से इस test का attempt पहले ही दर्ज है।");
+    
+    currentTestId = id; activeStudent = name; currentTest = t.data();
+    const qs = await getDocs(query(collection(db, "tests", id, "questions"), orderBy("order")));
+    currentQuestions = qs.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!currentQuestions.length) throw Error("इस test में अभी questions नहीं हैं।");
+    
+    $("testTitle").textContent = currentTest.title;
+    $("testMeta").textContent = (currentTest.category || "") + " • " + (currentTest.instructions || "");
+    $("questions").innerHTML = currentQuestions.map((q, i) => 
+      `<div class="question"><b>Q${i + 1}. ${esc(q.text)}</b>${q.photoURL ? `<p><img src="${esc(q.photoURL)}" style="max-width:100%;max-height:220px"></p>` : ""}${["A", "B", "C", "D"].map(k => `<label class="option"><input type="radio" name="q_${q.id}" value="${k}"><span><b>${k}.</b>${esc(q.options?.[k] || "")}</span></label>`).join("")}</div>`
+    ).join("");
+    
+    show("home", false); show("studentResult", false); show("testArea", true);
+    $("submitBtn").disabled = false;
+    secondsLeft = Math.max(1, Number(currentTest.minutes || 30)) * 60;
+    updateTimer();
+    clearInterval(timerHandle);
+    timerHandle = setInterval(() => {
+      secondsLeft--;
+      updateTimer();
+      if (secondsLeft <= 0) { clearInterval(timerHandle); submitTest(true); }
+    }, 1000);
+  } catch (e) { alert(e.message || e); }
+};
 
-    if (!currentTestId) {
-      throw Error("पहले Create Test करें।");
-    }
+function updateTimer() {
+  $("timer").textContent = "समय: " + String(Math.floor(secondsLeft / 60)).padStart(2, "0") + ":" + String(secondsLeft % 60).padStart(2, "0");
+}
 
-    const text = $("qText").value.trim();
-    const options = {};
-
-    ["A", "B", "C", "D"].forEach(k => {
-      options[k] = $("opt" + k).value.trim();
+async function submitTest(auto = false) {
+  if (!currentTestId || $("submitBtn").disabled) return;
+  if (!auto && !confirm("क्या आप test submit करना चाहते हैं? Submit के बाद दोबारा attempt नहीं होगा।")) return;
+  $("submitBtn").disabled = true; clearInterval(timerHandle);
+  try {
+    const answers = {};
+    currentQuestions.forEach(q => {
+      const el = document.querySelector(`input[name="q_${q.id}"]:checked`);
+      answers[q.id] = el ? el.value : "";
     });
 
-    if (!text) {
-      throw Error("Question लिखें या OCR चलाएं।");
-    }
+    let score = 0, total = 0, correct = 0, wrong = 0, unanswered = 0;
+    currentQuestions.forEach(q => {
+      const m = Number(q.marks || 1);
+      total += m;
+      const a = answers[q.id];
+      if (!a) unanswered++;
+      else if (a === q.correct) { score += m; correct++; }
+      else wrong++;
+    });
 
-    if (Object.values(options).some(x => !x)) {
-      throw Error("चारों options भरें।");
-    }
+    const attemptRef = doc(db, "tests", currentTestId, "attempts", auth.currentUser.uid);
+    await runTransaction(db, async tx => {
+      const old = await tx.get(attemptRef);
+      if (old.exists()) throw Error("Attempt पहले से submit हो चुका है।");
+      tx.set(attemptRef, {
+        studentName: activeStudent,
+        answers, score, total, correct, wrong, unanswered,
+        submittedAt: serverTimestamp(),
+        autoSubmitted: auto
+      });
+    });
+
+    show("testArea", false); show("studentResult", true);
+    $("studentResult").innerHTML = `
+      <h2>Test Result</h2>
+      <p>नाम: <b>${esc(activeStudent)}</b></p>
+      <h3>Score: ${score} / ${total}</h3>
+      <p>Correct: ${correct} • Wrong: ${wrong} • Unattempted: ${unanswered}</p>
+      <p>आपका result दर्ज हो गया है।</p>
+      <button id="viewAnalysisBtn" class="secondary">केवल गलत सवाल (Wrong Questions) का Analysis देखें</button>
+      <div id="studentAnalysisBox" style="margin-top:15px;text-align:left;"></div>
+    `;
+
+    // Student Only Wrong Questions Analysis Event
+    $("viewAnalysisBtn").onclick = () => {
+      let wrongHtml = "<h3>गलत / छूटे हुए प्रश्नों का विश्लेषण (Wrong Questions Analysis):</h3>";
+      let hasWrong = false;
+
+      currentQuestions.forEach((q, i) => {
+        const studentAns = answers[q.id] || "Not Attempted";
+        if (studentAns !== q.correct) {
+          hasWrong = true;
+          wrongHtml += `
+            <div class="question" style="border-left: 4px solid var(--red); background:#fff5f5;">
+              <b>Q${i + 1}. ${esc(q.text)}</b><br>
+              <span style="color:var(--red);">आपका उत्तर: <b>${studentAns}</b></span> | 
+              <span style="color:var(--green);">सही उत्तर: <b>${q.correct}</b></span><br>
+              <div class="muted" style="margin-top:5px;">
+                A: ${esc(q.options.A)} | B: ${esc(q.options.B)} | C: ${esc(q.options.C)} | D: ${esc(q.options.D)}
+              </div>
+            </div>
+          `;
+        }
+      });
+
+      if (!hasWrong) {
+        wrongHtml += "<p style='color:var(--green); font-weight:bold;'>शाबाश! आपने सभी प्रश्नों का सही उत्तर दिया है।</p>";
+      }
+
+      $("studentAnalysisBox").innerHTML = wrongHtml;
+    };
+
+  } catch (e) { $("submitBtn").disabled = false; alert(e.message || e); }
+}
+$("submitBtn").onclick = () => submitTest(false);
+
+$("adminLoginBtn").onclick = async () => {
+  try {
+    requireConfig();
+    await signInWithEmailAndPassword(auth, $("adminEmail").value.trim(), $("adminPassword").value);
+    if (!(await isAdmin())) throw Error("Admin account से login करें।");
+    show("adminPanel", true); show("adminLogoutBtn", true);
+    status("adminStatus", " Login successful");
+    await refreshTests(); await refreshResults();
+  } catch (e) { status("adminStatus", " " + (e.message || e)); }
+};
+
+$("adminLogoutBtn").onclick = async () => {
+  await signOut(auth);
+  show("adminPanel", false); show("adminLogoutBtn", false);
+  status("adminStatus", " Logged out");
+};
+
+onAuthStateChanged(auth, async user => {
+  if (user && !user.isAnonymous) {
+    show("adminPanel", true); show("adminLogoutBtn", true);
+    await refreshTests().catch(() => {});
+    await refreshResults().catch(() => {});
+  }
+});
+
+$("createTestBtn").onclick = async () => {
+  try {
+    if (!(await isAdmin())) throw Error("पहले admin login करें।");
+    const title = $("newTitle").value.trim();
+    if (!title) throw Error("Test title भरें।");
+    const d = await addDoc(collection(db, "tests"), {
+      title,
+      category: $("newCategory").value,
+      minutes: Number($("newMinutes").value || 30),
+      instructions: $("newInstructions").value.trim(),
+      status: "draft",
+      createdAt: serverTimestamp(),
+      createdBy: auth.currentUser.uid
+    });
+    currentTestId = d.id; currentQuestions = [];
+    $("editingTestId").textContent = d.id;
+    show("questionEditor", true);
+    status("createdTestInfo", " Test created.");
+    await renderQuestionList();
+  } catch (e) { alert(e.message || e); }
+};
+
+$("questionPhoto").onchange = e => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  photoBlob = f;
+  $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(f)}" style="max-width:240px;max-height:180px" alt="Question photo">`;
+};
+
+$("cropReadBtn").onclick = () => {
+  const f = $("questionPhoto").files?.[0];
+  if (!f) return alert("पहले photo चुनें।");
+  $("cropImage").src = URL.createObjectURL(f);
+  show("cropModal", true);
+  $("cropImage").onload = () => {
+    if (cropper) cropper.destroy();
+    cropper = new Cropper($("cropImage"), { viewMode: 1, autoCropArea: .9, responsive: true });
+  };
+};
+
+$("cancelCropBtn").onclick = () => {
+  show("cropModal", false);
+  if (cropper) { cropper.destroy(); cropper = null; }
+};
+
+$("applyCropBtn").onclick = async () => {
+  if (!cropper) return;
+  const canvas = cropper.getCroppedCanvas({ maxWidth: 2200, maxHeight: 2200 });
+  canvas.toBlob(async blob => {
+    if (!blob) return;
+    photoBlob = blob;
+    status("ocrStatus", "Photo पढ़ी जा रही है… कृपया प्रतीक्षा करें।");
+    try {
+      const result = await Tesseract.recognize(canvas, 'hin+eng', {
+        logger: m => { if (m.status) status("ocrStatus", m.status + " " + Math.round((m.progress || 0) * 100) + "%"); }
+      });
+      parseOCR(result.data.text);
+      $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(blob)}" style="max-width:240px;max-height:180px" alt="Cropped photo">`;
+      status("ocrStatus", "OCR complete!");
+      cropper.destroy(); cropper = null;
+      show("cropModal", false);
+    } catch (e) { status("ocrStatus", "OCR error: " + e.message); }
+  }, "image/jpeg", .92);
+};
+
+$("usePhotoBtn").onclick = () => {
+  const f = $("questionPhoto").files?.[0];
+  if (!f) return alert("पहले photo चुनें।");
+  photoBlob = f;
+  $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(f)}" style="max-width:240px;max-height:180px" alt="Question photo">`;
+  alert("Photo attach हो गई।");
+};
+
+$("addQuestionBtn").onclick = async () => {
+  try {
+    if (!(await isAdmin())) throw Error("Admin login आवश्यक है।");
+    if (!currentTestId) throw Error("पहले Create Test करें।");
+    const text = $("qText").value.trim();
+    const options = {};
+    ["A", "B", "C", "D"].forEach(k => { options[k] = $("opt" + k).value.trim(); });
+
+    if (!text) throw Error("Question लिखें या OCR चलाएं।");
+    if (Object.values(options).some(x => !x)) throw Error("चारों options भरें।");
 
     let photoURL = "";
-
-    // Photo upload optional है।
-    // Photo upload fail होने पर भी Question save करने की कोशिश होगी।
     if (photoBlob) {
       try {
-        const r = ref(
-          storage,
-          `question-photos/${currentTestId}/${Date.now()}.jpg`
-        );
-
+        const r = ref(storage, `question-photos/${currentTestId}/${Date.now()}.jpg`);
         await uploadBytes(r, photoBlob);
         photoURL = await getDownloadURL(r);
-
       } catch (photoError) {
         console.error("Photo upload failed:", photoError);
-        photoURL = "";
       }
     }
 
-    await addDoc(
-      collection(db, "tests", currentTestId, "questions"),
-      {
-        text,
-        options,
-        correct: $("correct").value,
-        marks: Number($("marks").value || 1),
-        photoURL,
-        order: Date.now(),
-        createdAt: serverTimestamp()
-      }
-    );
+    await addDoc(collection(db, "tests", currentTestId, "questions"), {
+      text, options, correct: $("correct").value, marks: Number($("marks").value || 1),
+      photoURL, order: Date.now(), createdAt: serverTimestamp()
+    });
 
     clearQuestion();
     await renderQuestionList();
-
-    alert(
-      photoBlob
-        ? "Question save हो गया। अगर फोटो अपलोड नहीं हुई, तो Question बिना फोटो के सेव हुआ है।"
-        : "Question सफलतापूर्वक save हो गया।"
-    );
-
-  } catch (e) {
-    console.error("Question save error:", e);
-    alert("Question save नहीं हुआ: " + (e.message || e));
-  }
+    alert("Question सफलतापूर्वक save हो गया।");
+  } catch (e) { alert("Question save नहीं हुआ: " + (e.message || e)); }
 };
-async function renderQuestionList(){if(!currentTestId)return;const snap=await getDocs(query(collection(db,"tests",currentTestId,"questions"),orderBy("order")));currentQuestions=snap.docs.map(d=>({id:d.id,...d.data()}));$("questionList").innerHTML=`<h3>Saved Questions (${currentQuestions.length})</h3>`+currentQuestions.map((q,i)=>`<div class="question">Q${i+1}. ${esc(q.text)} <span class="pill">${q.marks} marks</span><br><span class="muted">A: ${esc(q.options.A)} | B: ${esc(q.options.B)} | C: ${esc(q.options.C)} | D: ${esc(q.options.D)} | Answer: ${q.correct}</span></div>`).join("")}
-$("publishBtn").onclick=async()=>{try{if(!(await isAdmin()))throw Error("Admin login आवश्यक है।");const snap=await getDocs(collection(db,"tests",currentTestId,"questions"));if(snap.empty)throw Error("कम से कम एक question जोड़ें।");await updateDoc(doc(db,"tests",currentTestId),{status:"published",publishedAt:serverTimestamp()});const link=location.origin+location.pathname+"?test="+currentTestId;$("shareLink").innerHTML=`<p><b>Student Link</b></p><input id="generatedLink" readonly value="${esc(link)}"><button id="copyLinkBtn">Copy Link</button><p class="muted">इस link को students को भेजें।</p>`;$("copyLinkBtn").onclick=async()=>{await navigator.clipboard.writeText(link);alert("Link copied")};await refreshTests()}catch(e){alert(e.message||e)}};
-$("refreshTestsBtn").onclick=()=>refreshTests().catch(e=>alert(e.message));
-async function refreshTests(){if(!(await isAdmin()))return;const snap=await getDocs(query(collection(db,"tests"),orderBy("createdAt","desc")));$("adminTests").innerHTML=snap.docs.map(d=>`<div class="question"><b>${esc(d.data().title)}</b> <span class="pill">${esc(d.data().category)}</span><span class="pill">${esc(d.data().status)}</span><br><span class="muted">ID: ${d.id}</span><br><button data-edit="${d.id}">Manage Questions</button> <button class="secondary" data-link="${d.id}">Copy Student Link</button></div>`).join("")||"अभी कोई test नहीं है।";$("adminTests").querySelectorAll("[data-edit]").forEach(b=>b.onclick=async()=>{currentTestId=b.dataset.edit;$("editingTestId").textContent=currentTestId;show("questionEditor",true);await renderQuestionList()});$("adminTests").querySelectorAll("[data-link]").forEach(b=>b.onclick=async()=>{const link=location.origin+location.pathname+"?test="+b.dataset.link;try{await navigator.clipboard.writeText(link);alert("Student link copied: "+link)}catch{prompt("Student link copy करें",link)}})}
-$("refreshResultsBtn").onclick=()=>refreshResults().catch(e=>alert(e.message));
-async function refreshResults(){if(!(await isAdmin()))return;const ts=await getDocs(collection(db,"tests"));let rows=[];for(const t of ts.docs){const at=await getDocs(collection(db,"tests",t.id,"attempts"));at.docs.forEach(a=>rows.push({test:t.data().title,testId:t.id,...a.data(),submittedAt:a.data().submittedAt?.toDate?.().toLocaleString("en-IN")||""}))}lastResults=rows;$("resultsTable").innerHTML=rows.length?`<table><thead><tr><th>Test</th><th>Student</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Unattempted</th><th>Submitted</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.test)}</td><td>${esc(r.studentName)}</td><td>${r.score??"-"}/${r.total??"-"}</td><td>${r.correct??"-"}</td><td>${r.wrong??"-"}</td><td>${r.unanswered??"-"}</td><td>${esc(r.submittedAt)}</td></tr>`).join("")}</tbody></table>`:"अभी कोई result नहीं आया है।"}
-$("exportResultsBtn").onclick=()=>{if(!lastResults.length)return alert("पहले Refresh Results दबाएं।");const cols=["test","testId","studentName","score","total","correct","wrong","unanswered","submittedAt"];const csv=[cols.join(","),...lastResults.map(r=>cols.map(k=>`"${String(r[k]??"").replace(/"/g,'""')}"`).join(","))].join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));a.download="positive-coaching-results.csv";a.click();URL.revokeObjectURL(a.href)};
-$("questionPhoto").onchange=e=>{const f=e.target.files?.[0];if(!f)return;photoBlob=f;$("photoPreview").innerHTML=`<img src="${URL.createObjectURL(f)}" style="max-width:240px;max-height:180px" alt="Question photo">`};
-$("cropReadBtn").onclick=()=>{const f=$("questionPhoto").files?.[0];if(!f)return alert("पहले camera/gallery से photo चुनें।");$("cropImage").src=URL.createObjectURL(f);show("cropModal",true);$("cropImage").onload=()=>{if(cropper)cropper.destroy();cropper=new Cropper($("cropImage"),{viewMode:1,autoCropArea:.9, responsive:true})}};
-$("cancelCropBtn").onclick=()=>{show("cropModal",false);if(cropper){cropper.destroy();cropper=null}};
-$("applyCropBtn").onclick=async()=>{if(!cropper)return;const canvas=cropper.getCroppedCanvas({maxWidth:2200,maxHeight:2200});canvas.toBlob(async blob=>{if(!blob)return;photoBlob=blob;status("ocrStatus","Photo पढ़ी जा रही है… Hindi + English OCR में थोड़ा समय लग सकता है।");try{const result=await Tesseract.recognize(canvas,"hin+eng",{logger:m=>{if(m.status)status("ocrStatus",m.status+" "+Math.round((m.progress||0)*100)+"%")}});parseOCR(result.data.text);$("photoPreview").innerHTML=`<img src="${URL.createObjectURL(blob)}" style="max-width:240px;max-height:180px" alt="Cropped photo">`;status("ocrStatus","OCR complete. Text और options जाँचकर सुधारें।");cropper.destroy();cropper=null;show("cropModal",false)}catch(e){status("ocrStatus","OCR error: "+e.message)}}, "image/jpeg",.92)};
-$("usePhotoBtn").onclick=()=>{const f=$("questionPhoto").files?.[0];if(!f)return alert("पहले photo चुनें।");photoBlob=f;$("photoPreview").innerHTML=`<img src="${URL.createObjectURL(f)}" style="max-width:240px;max-height:180px" alt="Question photo">`;alert("Photo attach हो गई। Question और options manually भरना न भूलें।")};
-$("clearQuestionBtn").onclick=clearQuestion;
+
+$("clearQuestionBtn").onclick = clearQuestion;
+
+async function renderQuestionList() {
+  if (!currentTestId) return;
+  const snap = await getDocs(query(collection(db, "tests", currentTestId, "questions"), orderBy("order")));
+  currentQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  $("questionList").innerHTML = `<h3>Saved Questions (${currentQuestions.length})</h3>` +
+    currentQuestions.map((q, i) => `<div class="question">Q${i + 1}. ${esc(q.text)} <span class="pill">${q.marks} marks</span><br><span class="muted">A: ${esc(q.options.A)} | B: ${esc(q.options.B)} | C: ${esc(q.options.C)} | D: ${esc(q.options.D)} | Answer: ${q.correct}</span></div>`).join("");
+}
+
+$("publishBtn").onclick = async () => {
+  try {
+    if (!(await isAdmin())) throw Error("Admin login आवश्यक है।");
+    const snap = await getDocs(collection(db, "tests", currentTestId, "questions"));
+    if (snap.empty) throw Error("कम से कम एक question जोड़ें।");
+    await updateDoc(doc(db, "tests", currentTestId), { status: "published", publishedAt: serverTimestamp() });
+    const link = location.origin + location.pathname + "?test=" + currentTestId;
+    $("shareLink").innerHTML = `<p><b>Student Link</b></p><input id="generatedLink" readonly value="${esc(link)}"><button id="copyLinkBtn">Copy Link</button><p class="muted">इस link को students को भेजें।</p>`;
+    $("copyLinkBtn").onclick = async () => { await navigator.clipboard.writeText(link); alert("Link copied"); };
+    await refreshTests();
+  } catch (e) { alert(e.message || e); }
+};
+
+$("refreshTestsBtn").onclick = () => refreshTests().catch(e => alert(e.message));
+
+async function refreshTests() {
+  if (!(await isAdmin())) return;
+  const snap = await getDocs(query(collection(db, "tests"), orderBy("createdAt", "desc")));
+  $("adminTests").innerHTML = snap.docs.map(d => 
+    `<div class="question">
+      <b>${esc(d.data().title)}</b> <span class="pill">${esc(d.data().category)}</span><span class="pill">${esc(d.data().status)}</span><br>
+      <span class="muted">ID: ${d.id}</span><br>
+      <button data-edit="${d.id}">Manage Questions</button> 
+      <button class="secondary" data-link="${d.id}">Copy Student Link</button>
+      <button class="red" data-delete-test="${d.id}">Delete Test</button>
+    </div>`
+  ).join("") || "अभी कोई test नहीं है।";
+
+  $("adminTests").querySelectorAll("[data-edit]").forEach(b => b.onclick = async () => {
+    currentTestId = b.dataset.edit;
+    $("editingTestId").textContent = currentTestId;
+    show("questionEditor", true);
+    await renderQuestionList();
+  });
+
+  $("adminTests").querySelectorAll("[data-link]").forEach(b => b.onclick = async () => {
+    const link = location.origin + location.pathname + "?test=" + b.dataset.link;
+    try { await navigator.clipboard.writeText(link); alert("Student link copied: " + link); }
+    catch { prompt("Student link copy करें", link); }
+  });
+
+  // Delete Test Functionality
+  $("adminTests").querySelectorAll("[data-delete-test]").forEach(b => b.onclick = async () => {
+    if (!confirm("क्या आप इस Test को हमेशा के लिए डिलीट करना चाहते हैं?")) return;
+    try {
+      await deleteDoc(doc(db, "tests", b.dataset.deleteTest));
+      alert("Test डिलीट कर दिया गया है।");
+      await refreshTests();
+    } catch (e) { alert("Test डिलीट नहीं हुआ: " + e.message); }
+  });
+}
+
+$("refreshResultsBtn").onclick = () => refreshResults().catch(e => alert(e.message));
+
+async function refreshResults() {
+  if (!(await isAdmin())) return;
+  const ts = await getDocs(collection(db, "tests"));
+  let rows = [];
+  for (const t of ts.docs) {
+    const at = await getDocs(collection(db, "tests", t.id, "attempts"));
+    at.docs.forEach(a => rows.push({
+      attemptId: a.id,
+      test: t.data().title, testId: t.id, ...a.data(),
+      submittedAt: a.data().submittedAt?.toDate?.().toLocaleString("en-IN") || ""
+    }));
+  }
+  lastResults = rows;
+  $("resultsTable").innerHTML = rows.length ? 
+    `<table><thead><tr><th>Test</th><th>Student</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Unattempted</th><th>Submitted</th><th>Action</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.test)}</td><td>${esc(r.studentName)}</td><td>${r.score ?? "-"}/${r.total ?? "-"}</td><td>${r.correct ?? "-"}</td><td>${r.wrong ?? "-"}</td><td>${r.unanswered ?? "-"}</td><td>${esc(r.submittedAt)}</td><td><button class="red" style="padding:4px 8px;" data-delete-result="${r.testId}" data-attempt-id="${r.attemptId}">Delete</button></td></tr>`).join("")}</tbody></table>` : 
+    "अभी कोई result नहीं आया है।";
+
+  // Delete Individual Result Functionality
+  $("resultsTable").querySelectorAll("[data-delete-result]").forEach(b => b.onclick = async () => {
+    if (!confirm("क्या आप इस स्टूडेंट का Result डिलीट करना चाहते हैं?")) return;
+    try {
+      await deleteDoc(doc(db, "tests", b.dataset.deleteResult, "attempts", b.dataset.attemptId));
+      alert("Result डिलीट कर दिया गया है।");
+      await refreshResults();
+    } catch (e) { alert("Result डिलीट करने में समस्या आई: " + e.message); }
+  });
+}
+
+$("exportResultsBtn").onclick = () => {
+  if (!lastResults.length) return alert("पहले Refresh Results दबाएं।");
+  const cols = ["test", "testId", "studentName", "score", "total", "correct", "wrong", "unanswered", "submittedAt"];
+  const csv = [cols.join(","), ...lastResults.map(r => cols.map(k => `"${String(r[k] ?? "").replace(/"/g, '""')}"`).join(","))].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "positive-coaching-results.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
 </script>
 </body></html>
