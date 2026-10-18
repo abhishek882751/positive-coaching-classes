@@ -52,21 +52,66 @@ footer{text-align:center;color:#64748b;padding:25px}
 <h2>Create / Edit Test</h2>
 <div class="row"><div><label>Test Title</label><input id="newTitle" placeholder="SSC Mock Test 01"></div><div><label>Exam Category</label><select id="newCategory"><option>SSC</option><option>Railway</option><option>ESB</option><option>Other</option></select></div><div><label>Time Limit (minutes)</label><input id="newMinutes" type="number" min="1" value="30"></div></div>
 <label>Test Instructions (optional)</label><textarea id="newInstructions" placeholder="Instructions for students"></textarea>
-<div class="notice">पहले test बनाएं, फिर नीचे सवाल जोड़ें। Photo OCR Hindi/English text पढ़ने की कोशिश करता है; submit करने से पहले question, options और सही answer ज़रूर जाँचें।</div>
+<div class="notice">पहले test बनाएं, फिर नीचे सवाल जोड़ें।</div>
 <button id="createTestBtn" class="green">Create Test</button><span id="createdTestInfo"></span>
 </div>
+
+<!-- Question Editor Matching Screenshot Layout -->
 <div id="questionEditor" class="card hidden">
 <h2>Add Questions</h2><p>Current Test ID: <b id="editingTestId"></b></p>
-<label>Question Photo (camera या gallery)</label><input id="questionPhoto" type="file" accept="image/*" capture="environment">
-<button id="cropReadBtn" class="secondary">Crop Photo & Read Text</button><button id="usePhotoBtn" class="secondary">Photo केवल attach करें</button>
-<div id="photoPreview"></div>
-<label>Question</label><textarea id="qText" placeholder="Question text"></textarea>
-<div class="row"><div><label>Option A</label><input id="optA"></div><div><label>Option B</label><input id="optB"></div><div><label>Option C</label><input id="optC"></div><div><label>Option D</label><input id="optD"></div></div>
-<div class="row"><div><label>Correct Answer</label><select id="correct"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div><div><label>Marks</label><input id="marks" type="number" value="1" min="0.25" step="0.25"></div></div>
-<button id="addQuestionBtn" class="green">Save Question</button><button id="clearQuestionBtn" class="secondary">Clear Form</button>
-<div id="questionList"></div>
-<button id="publishBtn" class="green">Publish Test & Create Link</button><div id="shareLink"></div>
+
+<label>Type your question here, or attach a photo below</label>
+<textarea id="qText" placeholder="Type your question here..."></textarea>
+
+<div class="row">
+  <div><label>Question subject (analysis)</label><input id="qSubject" placeholder="e.g. Maths"></div>
+  <div><label>Question topic (analysis)</label><input id="qTopic" placeholder="e.g. Percentage"></div>
 </div>
+
+<label>Question photo</label>
+<div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+  <button type="button" id="takePhotoBtn" class="green" style="margin:0;">📷 Take Photo / Open Camera</button>
+  <button type="button" id="choosePhotoBtn" class="secondary" style="margin:0;">Choose Photo</button>
+  <button type="button" id="removePhotoBtn" class="red hidden" style="margin:0;">Remove Photo</button>
+  <input id="questionPhoto" type="file" accept="image/*" capture="environment" class="hidden">
+  <input id="questionPhotoGallery" type="file" accept="image/*" class="hidden">
+</div>
+<p id="photoStatusText" class="muted">No photo selected. On a phone, tap "Take Photo" to open the camera.</p>
+<div id="photoPreview"></div>
+
+<div class="row">
+  <div><label>Option A</label><input id="optA" placeholder="Option A"></div>
+  <div><label>Option B</label><input id="optB" placeholder="Option B"></div>
+</div>
+<div class="row">
+  <div><label>Option C</label><input id="optC" placeholder="Option C"></div>
+  <div><label>Option D</label><input id="optD" placeholder="Option D"></div>
+</div>
+
+<div class="row">
+  <div>
+    <label>Correct answer</label>
+    <select id="correct"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select>
+  </div>
+  <div>
+    <label>Marks</label><input id="marks" type="number" value="1" min="0.25" step="0.25">
+  </div>
+</div>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+  <button id="addQuestionBtn" class="green" style="margin:0;">Add Question</button>
+  <span id="questionCountLabel" class="muted">0 questions added</span>
+</div>
+
+<div id="questionList" style="margin-top:15px;">No questions added yet.</div>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; border-top:1px solid #dbe3ef; padding-top:15px;">
+  <button id="publishBtn" class="green" style="margin:0;">Save / Publish Test</button>
+  <button id="clearDraftBtn" class="secondary" style="margin:0;">Clear Draft</button>
+</div>
+<div id="shareLink" style="margin-top:10px;"></div>
+</div>
+
 <div class="card"><h2>My Tests</h2><button id="refreshTestsBtn" class="secondary">Refresh Tests</button><div id="adminTests"></div></div>
 <div class="card"><h2>Student Results</h2><button id="refreshResultsBtn" class="secondary">Refresh Results</button><button id="exportResultsBtn" class="secondary">Export CSV</button><div id="resultsTable" class="scroll"></div></div>
 </section>
@@ -79,7 +124,7 @@ footer{text-align:center;color:#64748b;padding:25px}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 const firebaseConfig = {
@@ -94,7 +139,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app), storage = getStorage(app);
 const $ = id => document.getElementById(id);
-let currentTestId = null, currentQuestions = [], timerHandle = null, secondsLeft = 0, cropper = null, photoBlob = null, activeStudent = null, currentTest = null, lastResults = [];
+let currentTestId = null, currentQuestions = [], timerHandle = null, secondsLeft = 0, photoBlob = null, activeStudent = null, currentTest = null, lastResults = [];
 const isConfigured = !firebaseConfig.apiKey.startsWith("PASTE_");
 
 function status(id, msg) { $(id).textContent = msg; }
@@ -108,33 +153,45 @@ async function ensureStudentAuth() { requireConfig(); if (!auth.currentUser) awa
 async function isAdmin() { return !!auth.currentUser && !auth.currentUser.isAnonymous; }
 
 function clearQuestion() {
-  ["qText", "optA", "optB", "optC", "optD"].forEach(id => $(id).value = "");
+  ["qText", "qSubject", "qTopic", "optA", "optB", "optC", "optD"].forEach(id => $(id).value = "");
   $("correct").value = "A"; $("marks").value = "1";
-  photoBlob = null; $("photoPreview").innerHTML = ""; $("questionPhoto").value = "";
+  photoBlob = null; 
+  $("photoPreview").innerHTML = ""; 
+  $("questionPhoto").value = "";
+  $("questionPhotoGallery").value = "";
+  $("removePhotoBtn").classList.add("hidden");
+  $("photoStatusText").textContent = 'No photo selected. On a phone, tap "Take Photo" to open the camera.';
 }
 
-function parseOCR(raw) {
-  let lines = raw.split(/\n/).map(x => x.trim()).filter(Boolean);
-  let q = [], opts = { A: [], B: [], C: [], D: [] }, found = false;
-  const re = /^\s*(?:\(?([A-D])\)?[\.\):\-]|\(([A-D])\))\s*(.+)$/i;
-  for (const line of lines) {
-    const m = line.match(re);
-    if (m) {
-      let key = (m[1] || m[2]).toUpperCase();
-      opts[key].push(m[3].trim());
-      found = true;
-    } else if (!found) {
-      q.push(line);
-    } else {
-      let key = ["A", "B", "C", "D"].find(k => opts[k].length);
-      if (key) opts[key][opts[key].length - 1] += " " + line;
-      else q.push(line);
-    }
-  }
-  $("qText").value = q.join(" ").trim();
-  for (const k of ["A", "B", "C", "D"]) $("opt" + k).value = opts[k].join(" ").trim();
-  if (!Object.values(opts).some(v => v.length)) $("qText").value = raw.trim();
+// Photo Action Handlers matching screenshot
+$("takePhotoBtn").onclick = () => $("questionPhoto").click();
+$("choosePhotoBtn").onclick = () => $("questionPhotoGallery").click();
+
+function handlePhotoSelect(file) {
+  if (!file) return;
+  photoBlob = file;
+  $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:240px;max-height:180px;border-radius:6px;margin-top:5px;" alt="Preview">`;
+  $("photoStatusText").textContent = `Selected: ${file.name}`;
+  $("removePhotoBtn").classList.remove("hidden");
 }
+
+$("questionPhoto").onchange = e => handlePhotoSelect(e.target.files?.[0]);
+$("questionPhotoGallery").onchange = e => handlePhotoSelect(e.target.files?.[0]);
+
+$("removePhotoBtn").onclick = () => {
+  photoBlob = null;
+  $("questionPhoto").value = "";
+  $("questionPhotoGallery").value = "";
+  $("photoPreview").innerHTML = "";
+  $("photoStatusText").textContent = 'No photo selected. On a phone, tap "Take Photo" to open the camera.';
+  $("removePhotoBtn").classList.add("hidden");
+};
+
+$("clearDraftBtn").onclick = () => {
+  if (confirm("क्या आप इस फॉर्म को साफ करना चाहते हैं?")) {
+    clearQuestion();
+  }
+};
 
 $("startBtn").onclick = async () => {
   try {
@@ -143,7 +200,7 @@ $("startBtn").onclick = async () => {
     await ensureStudentAuth();
     const t = await getDoc(doc(db, "tests", id));
     if (!t.exists() || t.data().status !== "published") throw Error("Test नहीं मिला या अभी publish नहीं हुआ।");
-    const existing = await getDoc(doc(doc(db, "tests", id), "attempts", auth.currentUser.uid));
+    const existing = await getDoc(doc(db, "tests", id, "attempts", auth.currentUser.uid));
     if (existing.exists()) throw Error("इस डिवाइस से इस test का attempt पहले ही दर्ज है।");
     
     currentTestId = id; activeStudent = name; currentTest = t.data();
@@ -154,7 +211,11 @@ $("startBtn").onclick = async () => {
     $("testTitle").textContent = currentTest.title;
     $("testMeta").textContent = (currentTest.category || "") + " • " + (currentTest.instructions || "");
     $("questions").innerHTML = currentQuestions.map((q, i) => 
-      `<div class="question"><b>Q${i + 1}. ${esc(q.text)}</b>${q.photoURL ? `<p><img src="${esc(q.photoURL)}" style="max-width:100%;max-height:220px"></p>` : ""}${["A", "B", "C", "D"].map(k => `<label class="option"><input type="radio" name="q_${q.id}" value="${k}"><span><b>${k}.</b>${esc(q.options?.[k] || "")}</span></label>`).join("")}</div>`
+      `<div class="question">
+        <b>Q${i + 1}. ${esc(q.text)}</b>
+        ${q.photoURL ? `<p><img src="${esc(q.photoURL)}" style="max-width:100%;max-height:220px"></p>` : ""}
+        ${["A", "B", "C", "D"].map(k => `<label class="option"><input type="radio" name="q_${q.id}" value="${k}"><span><b>${k}.</b>${esc(q.options?.[k] || "")}</span></label>`).join("")}
+      </div>`
     ).join("");
     
     show("home", false); show("studentResult", false); show("testArea", true);
@@ -218,7 +279,6 @@ async function submitTest(auto = false) {
       <div id="studentAnalysisBox" style="margin-top:15px;text-align:left;"></div>
     `;
 
-    // Student Only Wrong Questions Analysis Event
     $("viewAnalysisBtn").onclick = () => {
       let wrongHtml = "<h3>गलत / छूटे हुए प्रश्नों का विश्लेषण (Wrong Questions Analysis):</h3>";
       let hasWrong = false;
@@ -229,7 +289,9 @@ async function submitTest(auto = false) {
           hasWrong = true;
           wrongHtml += `
             <div class="question" style="border-left: 4px solid var(--red); background:#fff5f5;">
-              <b>Q${i + 1}. ${esc(q.text)}</b><br>
+              <b>Q${i + 1}. ${esc(q.text)}</b> 
+              ${q.subject ? `<span class="pill">${esc(q.subject)}</span>` : ""} 
+              ${q.topic ? `<span class="pill">${esc(q.topic)}</span>` : ""}<br>
               <span style="color:var(--red);">आपका उत्तर: <b>${studentAns}</b></span> | 
               <span style="color:var(--green);">सही उत्तर: <b>${q.correct}</b></span><br>
               <div class="muted" style="margin-top:5px;">
@@ -298,66 +360,17 @@ $("createTestBtn").onclick = async () => {
   } catch (e) { alert(e.message || e); }
 };
 
-$("questionPhoto").onchange = e => {
-  const f = e.target.files?.[0];
-  if (!f) return;
-  photoBlob = f;
-  $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(f)}" style="max-width:240px;max-height:180px" alt="Question photo">`;
-};
-
-$("cropReadBtn").onclick = () => {
-  const f = $("questionPhoto").files?.[0];
-  if (!f) return alert("पहले photo चुनें।");
-  $("cropImage").src = URL.createObjectURL(f);
-  show("cropModal", true);
-  $("cropImage").onload = () => {
-    if (cropper) cropper.destroy();
-    cropper = new Cropper($("cropImage"), { viewMode: 1, autoCropArea: .9, responsive: true });
-  };
-};
-
-$("cancelCropBtn").onclick = () => {
-  show("cropModal", false);
-  if (cropper) { cropper.destroy(); cropper = null; }
-};
-
-$("applyCropBtn").onclick = async () => {
-  if (!cropper) return;
-  const canvas = cropper.getCroppedCanvas({ maxWidth: 2200, maxHeight: 2200 });
-  canvas.toBlob(async blob => {
-    if (!blob) return;
-    photoBlob = blob;
-    status("ocrStatus", "Photo पढ़ी जा रही है… कृपया प्रतीक्षा करें।");
-    try {
-      const result = await Tesseract.recognize(canvas, 'hin+eng', {
-        logger: m => { if (m.status) status("ocrStatus", m.status + " " + Math.round((m.progress || 0) * 100) + "%"); }
-      });
-      parseOCR(result.data.text);
-      $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(blob)}" style="max-width:240px;max-height:180px" alt="Cropped photo">`;
-      status("ocrStatus", "OCR complete!");
-      cropper.destroy(); cropper = null;
-      show("cropModal", false);
-    } catch (e) { status("ocrStatus", "OCR error: " + e.message); }
-  }, "image/jpeg", .92);
-};
-
-$("usePhotoBtn").onclick = () => {
-  const f = $("questionPhoto").files?.[0];
-  if (!f) return alert("पहले photo चुनें।");
-  photoBlob = f;
-  $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(f)}" style="max-width:240px;max-height:180px" alt="Question photo">`;
-  alert("Photo attach हो गई।");
-};
-
 $("addQuestionBtn").onclick = async () => {
   try {
     if (!(await isAdmin())) throw Error("Admin login आवश्यक है।");
     if (!currentTestId) throw Error("पहले Create Test करें।");
     const text = $("qText").value.trim();
+    const subject = $("qSubject").value.trim();
+    const topic = $("qTopic").value.trim();
     const options = {};
     ["A", "B", "C", "D"].forEach(k => { options[k] = $("opt" + k).value.trim(); });
 
-    if (!text) throw Error("Question लिखें या OCR चलाएं।");
+    if (!text && !photoBlob) throw Error("Question text या photo दर्ज करें।");
     if (Object.values(options).some(x => !x)) throw Error("चारों options भरें।");
 
     let photoURL = "";
@@ -372,7 +385,7 @@ $("addQuestionBtn").onclick = async () => {
     }
 
     await addDoc(collection(db, "tests", currentTestId, "questions"), {
-      text, options, correct: $("correct").value, marks: Number($("marks").value || 1),
+      text, subject, topic, options, correct: $("correct").value, marks: Number($("marks").value || 1),
       photoURL, order: Date.now(), createdAt: serverTimestamp()
     });
 
@@ -382,26 +395,35 @@ $("addQuestionBtn").onclick = async () => {
   } catch (e) { alert("Question save नहीं हुआ: " + (e.message || e)); }
 };
 
-$("clearQuestionBtn").onclick = clearQuestion;
-
 async function renderQuestionList() {
   if (!currentTestId) return;
   const snap = await getDocs(query(collection(db, "tests", currentTestId, "questions"), orderBy("order")));
   currentQuestions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  $("questionList").innerHTML = `<h3>Saved Questions (${currentQuestions.length})</h3>` +
-    currentQuestions.map((q, i) => `<div class="question">Q${i + 1}. ${esc(q.text)} <span class="pill">${q.marks} marks</span><br><span class="muted">A: ${esc(q.options.A)} | B: ${esc(q.options.B)} | C: ${esc(q.options.C)} | D: ${esc(q.options.D)} | Answer: ${q.correct}</span></div>`).join("");
+  
+  $("questionCountLabel").textContent = `${currentQuestions.length} questions added`;
+  
+  $("questionList").innerHTML = currentQuestions.length ? 
+    currentQuestions.map((q, i) => `<div class="question"><b>Q${i + 1}.</b> ${esc(q.text)} ${q.subject ? `<span class="pill">${esc(q.subject)}</span>` : ""} <span class="pill">${q.marks} marks</span><br><span class="muted">A: ${esc(q.options.A)} | B: ${esc(q.options.B)} | C: ${esc(q.options.C)} | D: ${esc(q.options.D)} | Ans: ${q.correct}</span></div>`).join("") : 
+    "No questions added yet.";
 }
 
 $("publishBtn").onclick = async () => {
   try {
     if (!(await isAdmin())) throw Error("Admin login आवश्यक है।");
+    if (!currentTestId) throw Error("कोई Test ID नहीं मिली।");
     const snap = await getDocs(collection(db, "tests", currentTestId, "questions"));
     if (snap.empty) throw Error("कम से कम एक question जोड़ें।");
-    await updateDoc(doc(db, "tests", currentTestId), { status: "published", publishedAt: serverTimestamp() });
+    
+    await setDoc(doc(db, "tests", currentTestId), { 
+      status: "published", 
+      publishedAt: serverTimestamp() 
+    }, { merge: true });
+
     const link = location.origin + location.pathname + "?test=" + currentTestId;
     $("shareLink").innerHTML = `<p><b>Student Link</b></p><input id="generatedLink" readonly value="${esc(link)}"><button id="copyLinkBtn">Copy Link</button><p class="muted">इस link को students को भेजें।</p>`;
     $("copyLinkBtn").onclick = async () => { await navigator.clipboard.writeText(link); alert("Link copied"); };
     await refreshTests();
+    alert("Test successfully published!");
   } catch (e) { alert(e.message || e); }
 };
 
@@ -433,7 +455,6 @@ async function refreshTests() {
     catch { prompt("Student link copy करें", link); }
   });
 
-  // Delete Test Functionality
   $("adminTests").querySelectorAll("[data-delete-test]").forEach(b => b.onclick = async () => {
     if (!confirm("क्या आप इस Test को हमेशा के लिए डिलीट करना चाहते हैं?")) return;
     try {
@@ -463,7 +484,6 @@ async function refreshResults() {
     `<table><thead><tr><th>Test</th><th>Student</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Unattempted</th><th>Submitted</th><th>Action</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.test)}</td><td>${esc(r.studentName)}</td><td>${r.score ?? "-"}/${r.total ?? "-"}</td><td>${r.correct ?? "-"}</td><td>${r.wrong ?? "-"}</td><td>${r.unanswered ?? "-"}</td><td>${esc(r.submittedAt)}</td><td><button class="red" style="padding:4px 8px;" data-delete-result="${r.testId}" data-attempt-id="${r.attemptId}">Delete</button></td></tr>`).join("")}</tbody></table>` : 
     "अभी कोई result नहीं आया है।";
 
-  // Delete Individual Result Functionality
   $("resultsTable").querySelectorAll("[data-delete-result]").forEach(b => b.onclick = async () => {
     if (!confirm("क्या आप इस स्टूडेंट का Result डिलीट करना चाहते हैं?")) return;
     try {
