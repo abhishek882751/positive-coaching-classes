@@ -20,10 +20,42 @@ button.secondary{background:#475569}button.green{background:var(--green)}button.
 #cropModal{position:fixed;inset:0;background:#000b;z-index:99;display:flex;align-items:center;justify-content:center;padding:12px}#cropBox{background:white;padding:16px;border-radius:12px;max-width:900px;width:100%;max-height:95vh;overflow:auto}#cropImage{max-width:100%;max-height:60vh}
 table{border-collapse:collapse;width:100%;font-size:14px}th,td{border:1px solid #dbe3ef;padding:8px;text-align:left}th{background:#eaf0fb}.scroll{overflow:auto}
 footer{text-align:center;color:#64748b;padding:25px}
+  .site-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+}
+
+.site-logo img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+}
+
+.site-logo h2 {
+    margin: 0;
+    font-size: 21px;
+    color: #173b75;
+}
+
+@media (max-width: 480px) {
+    .site-logo img {
+        width: 45px;
+        height: 45px;
+    }
+
+    .site-logo h2 {
+        font-size: 17px;
+    }
+}
 </style>
 </head>
 <body>
-<header><h1>Positive Competitive Classes</h1><p>SSC • Railway • ESB | Key Of Success</p></header>
+<header><div class="site-logo">
+    <img src="./logo.png" alt="Coaching Logo">
+    <h1>Positive Competitive Classes</h1>
+</div></header>
 <main>
 <section id="home" class="card">
 <h2>Student Test</h2>
