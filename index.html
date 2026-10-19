@@ -23,7 +23,7 @@ footer{text-align:center;color:#64748b;padding:25px}
 </style>
 </head>
 <body>
-<header><h1>Positive Competitive Classes</h1><p>SSC • Railway • ESB | Online Test Portal</p></header>
+<header><h1>Positive Coaching Classes</h1><p>SSC • Railway • ESB | Online Test Portal</p></header>
 <main>
 <section id="home" class="card">
 <h2>Student Test</h2>
@@ -98,9 +98,9 @@ footer{text-align:center;color:#64748b;padding:25px}
   </div>
 </div>
 
-<div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
-  <button id="addQuestionBtn" class="green" style="margin:0;">Add Question</button>
-  <span id="questionCountLabel" class="muted">0 questions added</span>
+<div style="margin-top: 15px;">
+  <button type="button" id="addQuestionBtn" class="green">➕ Add Question to Test</button>
+  <span id="questionCountLabel" class="muted" style="margin-left: 10px;">0 questions added</span>
 </div>
 
 <div id="questionList" style="margin-top:15px;">No questions added yet.</div>
@@ -116,16 +116,27 @@ footer{text-align:center;color:#64748b;padding:25px}
 <div class="card"><h2>Student Results</h2><button id="refreshResultsBtn" class="secondary">Refresh Results</button><button id="exportResultsBtn" class="secondary">Export CSV</button><div id="resultsTable" class="scroll"></div></div>
 </section>
 </main>
-<div id="cropModal" class="hidden"><div id="cropBox"><h2>Crop Question Photo</h2><p class="muted">Question और options वाला हिस्सा crop करें।</p><img id="cropImage" alt="Crop question"><div><button id="applyCropBtn" class="green">Crop & Read Question + Options</button><button id="cancelCropBtn" class="secondary">Cancel</button></div><p id="ocrStatus" class="muted"></p></div></div>
+
+<!-- Crop Modal -->
+<div id="cropModal" class="hidden">
+  <div id="cropBox">
+    <h2>Crop Question Photo</h2>
+    <p class="muted">Question और options वाला हिस्सा crop करें।</p>
+    <div><img id="cropImage" alt="Crop question" style="max-width:100%;"></div>
+    <div style="margin-top:15px;">
+      <button id="applyCropBtn" class="green">Crop & Use Photo</button>
+      <button id="cancelCropBtn" class="secondary">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <footer>Positive Coaching Classes • Online Test Portal</footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, collection, doc, getDoc, getDocs, addDoc, setDoc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAZnXIADYewt0wsBNtKsQc93-x_peptLO8",
@@ -137,9 +148,10 @@ const firebaseConfig = {
   measurementId: "G-V1ERL7D3YJ"
 };
 
-const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app), storage = getStorage(app);
+const app = initializeApp(firebaseConfig), auth = getAuth(app), db = getFirestore(app);
 const $ = id => document.getElementById(id);
 let currentTestId = null, currentQuestions = [], timerHandle = null, secondsLeft = 0, photoBlob = null, activeStudent = null, currentTest = null, lastResults = [];
+let cropper = null;
 const isConfigured = !firebaseConfig.apiKey.startsWith("PASTE_");
 
 function status(id, msg) { $(id).textContent = msg; }
@@ -163,20 +175,52 @@ function clearQuestion() {
   $("photoStatusText").textContent = 'No photo selected. On a phone, tap "Take Photo" to open the camera.';
 }
 
-// Photo Action Handlers matching screenshot
+// Photo & Cropper Handlers
 $("takePhotoBtn").onclick = () => $("questionPhoto").click();
 $("choosePhotoBtn").onclick = () => $("questionPhotoGallery").click();
 
+function openCropModal(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    $("cropImage").src = e.target.result;
+    show("cropModal", true);
+    if (cropper) cropper.destroy();
+    cropper = new Cropper($("cropImage"), {
+      aspectRatio: NaN,
+      viewMode: 1,
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
 function handlePhotoSelect(file) {
   if (!file) return;
-  photoBlob = file;
-  $("photoPreview").innerHTML = `<img src="${URL.createObjectURL(file)}" style="max-width:240px;max-height:180px;border-radius:6px;margin-top:5px;" alt="Preview">`;
-  $("photoStatusText").textContent = `Selected: ${file.name}`;
-  $("removePhotoBtn").classList.remove("hidden");
+  openCropModal(file);
 }
 
 $("questionPhoto").onchange = e => handlePhotoSelect(e.target.files?.[0]);
 $("questionPhotoGallery").onchange = e => handlePhotoSelect(e.target.files?.[0]);
+
+$("cancelCropBtn").onclick = () => {
+  show("cropModal", false);
+  if (cropper) { cropper.destroy(); cropper = null; }
+  $("questionPhoto").value = "";
+  $("questionPhotoGallery").value = "";
+};
+
+$("applyCropBtn").onclick = () => {
+  if (!cropper) return;
+  cropper.getCroppedCanvas().toBlob(blob => {
+    photoBlob = blob;
+    const previewUrl = URL.createObjectURL(blob);
+    $("photoPreview").innerHTML = `<img src="${previewUrl}" style="max-width:240px;max-height:180px;border-radius:6px;margin-top:5px;" alt="Preview">`;
+    $("photoStatusText").textContent = `Photo cropped and selected successfully.`;
+    $("removePhotoBtn").classList.remove("hidden");
+    show("cropModal", false);
+    cropper.destroy();
+    cropper = null;
+  }, "image/jpeg", 0.8);
+};
 
 $("removePhotoBtn").onclick = () => {
   photoBlob = null;
@@ -191,6 +235,51 @@ $("clearDraftBtn").onclick = () => {
   if (confirm("क्या आप इस फॉर्म को साफ करना चाहते हैं?")) {
     clearQuestion();
   }
+};
+
+// Helper to convert blob to Base64 string (No Storage needed!)
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ADD QUESTION BUTTON CLICK HANDLER (Using Firestore Base64 saving)
+$("addQuestionBtn").onclick = async () => {
+  try {
+    if (!(await isAdmin())) throw Error("Admin login आवश्यक है।");
+    if (!currentTestId) throw Error("पहले Create Test करें।");
+    const text = $("qText").value.trim();
+    const subject = $("qSubject").value.trim();
+    const topic = $("qTopic").value.trim();
+    const options = {};
+    ["A", "B", "C", "D"].forEach(k => { options[k] = $("opt" + k).value.trim(); });
+
+    if (!text && !photoBlob) throw Error("Question text या photo दर्ज करें।");
+    if (Object.values(options).some(x => !x)) throw Error("चारों options भरें।");
+
+    let photoURL = "";
+    if (photoBlob) {
+      try {
+        // Convert cropped image directly to Base64 string for free Firestore storage
+        photoURL = await blobToBase64(photoBlob);
+      } catch (err) {
+        console.error("Image conversion failed:", err);
+      }
+    }
+
+    await addDoc(collection(db, "tests", currentTestId, "questions"), {
+      text, subject, topic, options, correct: $("correct").value, marks: Number($("marks").value || 1),
+      photoURL, order: Date.now(), createdAt: serverTimestamp()
+    });
+
+    clearQuestion();
+    await renderQuestionList();
+    alert("Question सफलतापूर्वक save हो गया।");
+  } catch (e) { alert("Question save नहीं हुआ: " + (e.message || e)); }
 };
 
 $("startBtn").onclick = async () => {
@@ -360,41 +449,6 @@ $("createTestBtn").onclick = async () => {
   } catch (e) { alert(e.message || e); }
 };
 
-$("addQuestionBtn").onclick = async () => {
-  try {
-    if (!(await isAdmin())) throw Error("Admin login आवश्यक है।");
-    if (!currentTestId) throw Error("पहले Create Test करें।");
-    const text = $("qText").value.trim();
-    const subject = $("qSubject").value.trim();
-    const topic = $("qTopic").value.trim();
-    const options = {};
-    ["A", "B", "C", "D"].forEach(k => { options[k] = $("opt" + k).value.trim(); });
-
-    if (!text && !photoBlob) throw Error("Question text या photo दर्ज करें।");
-    if (Object.values(options).some(x => !x)) throw Error("चारों options भरें।");
-
-    let photoURL = "";
-    if (photoBlob) {
-      try {
-        const r = ref(storage, `question-photos/${currentTestId}/${Date.now()}.jpg`);
-        await uploadBytes(r, photoBlob);
-        photoURL = await getDownloadURL(r);
-      } catch (photoError) {
-        console.error("Photo upload failed:", photoError);
-      }
-    }
-
-    await addDoc(collection(db, "tests", currentTestId, "questions"), {
-      text, subject, topic, options, correct: $("correct").value, marks: Number($("marks").value || 1),
-      photoURL, order: Date.now(), createdAt: serverTimestamp()
-    });
-
-    clearQuestion();
-    await renderQuestionList();
-    alert("Question सफलतापूर्वक save हो गया।");
-  } catch (e) { alert("Question save नहीं हुआ: " + (e.message || e)); }
-};
-
 async function renderQuestionList() {
   if (!currentTestId) return;
   const snap = await getDocs(query(collection(db, "tests", currentTestId, "questions"), orderBy("order")));
@@ -485,7 +539,7 @@ async function refreshResults() {
     "अभी कोई result नहीं आया है।";
 
   $("resultsTable").querySelectorAll("[data-delete-result]").forEach(b => b.onclick = async () => {
-    if (!confirm("क्या आप इस स्टूडेंट का Result डिलीट करना चाहते हैं?")) return;
+    if (!confirm("क्या आप इस स्टूडेंट का Result डिलीट करना चाहते हैं?")) nonetarget;
     try {
       await deleteDoc(doc(db, "tests", b.dataset.deleteResult, "attempts", b.dataset.attemptId));
       alert("Result डिलीट कर दिया गया है।");
@@ -505,4 +559,5 @@ $("exportResultsBtn").onclick = () => {
   URL.revokeObjectURL(a.href);
 };
 </script>
-</body></html>
+</body>
+</html>
